@@ -1,1 +1,1 @@
-# BAN502-_CourseFiles
+# BAN502_CourseFiles
