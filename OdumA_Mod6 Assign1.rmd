@@ -1,0 +1,167 @@
+---
+output:
+  word_document: default
+  html_document: default
+---
+# BAN502 Module 6 - Assignment 1
+## Amanda Odum
+
+```{r message=FALSE}
+#For this assignment you will need the following libraries: tidyverse and tidymodels. Before beginning the assignment tasks, you should read-in the “trucks.csv” dataset into a data frame called “trucks”. In this dataset, Driver_ID is a unique identifer for each delivery driver, Distance is the average mileage driven by each driver in a day, and Speeding is the percentage of the driver’s time in which he is driving at least 5 miles per hour over the speed limit.
+
+library(tidyverse)
+library(tidymodels)
+trucks <- read_csv("trucks.csv")
+```
+
+```{r task 1}
+#Task 1: Plot the relationship between Distance and Speeding. Describe this relationship. Does there appear to be any natural clustering of drivers?
+
+ggplot(trucks,aes(x=Distance, y=Speeding)) + geom_point()
+```
+
+*It appears that drivers that spend a greater percentage of their drive speeding tend to also average higher daily distances Natural clusters appear between 0 and 25 percent of time spent speeding for both 0-75 miles (avg) per day and 150-225 miles (avg) per day.*  
+
+```{r task 2}
+#Task 2: As we did in the second clustering example, create a new data frame called “trucks_cleaned” that contains the scaled and centered variables. Two notes: 1) The “predictor” variables in the recipe are “Distance” and “Speeding” and 2) There is no need to create dummy variables as there are no categorical variables in the data.
+kmeans_recipe = recipe(~ Distance + Speeding, trucks) 
+trucks_dummy = kmeans_recipe %>% 
+    step_scale(all_numeric()) %>%
+    step_center(all_numeric()) 
+
+trucks_dummy = prep(trucks_dummy, trucks) #prepares the recipe
+trucks_cleaned = bake(trucks_dummy, trucks)
+
+#summary(trucks_cleaned)
+#str(trucks_cleaned)
+```
+
+```{r task 3}
+#Task 3 Use k-Means clustering with two clusters (k=2) to cluster the “trucks_cleaned” data frame. Use a random number seed of 64. Use augment to add the resulting clusters object to the the “trucks” data frame. Design an appropriate visualization to visualize the clusters. Comment on the clusters.
+
+set.seed(64)
+clusts = 
+  tibble(k = 2) %>%
+  mutate(
+    kclust = map(k, ~kmeans(trucks_cleaned, .x)),
+    tidied = map(kclust, tidy),
+    glanced = map(kclust, glance),
+    augmented = map(kclust, augment, trucks_cleaned)
+  )
+
+clusts
+
+clusters = 
+  clusts %>%
+  unnest(cols = c(tidied))
+
+assignments = 
+  clusts %>% 
+  unnest(cols = c(augmented))
+
+clusterings = 
+  clusts %>%
+  unnest(cols = c(glanced))
+
+set.seed(64)
+clusters = kmeans(trucks_cleaned, 2)
+
+trucks = augment(clusters, trucks)
+#str(trucks)
+
+p1 = 
+  ggplot(assignments, aes(x = Distance, y = Speeding)) +
+  geom_point(aes(color = .cluster), alpha = 0.8) + 
+  facet_wrap(~ k)
+p1
+
+
+```
+
+*Cluster 1 has a lower average distance traveled and lower percentage of speeders overall, whereas Cluster 2 has a greater variance of speeding and higher average distance traveled.  It appears that distance traveled and percentage of travel time spent speeding are positively correlated.*
+
+```{r task 4}
+#Task 4: Create a visualization to show how the cluster appear from values of k from 1 to 8. Use a random number seed of 412. Which value of k appears to be most appropriate for this data?
+
+set.seed(412)
+clusts = 
+  tibble(k = 1:8) %>%
+  mutate(
+    kclust = map(k, ~kmeans(trucks_cleaned, .x)),
+    tidied = map(kclust, tidy),
+    glanced = map(kclust, glance),
+    augmented = map(kclust, augment, trucks_cleaned)
+  )
+
+clusts
+
+clusters = 
+  clusts %>%
+  unnest(cols = c(tidied))
+
+assignments = 
+  clusts %>% 
+  unnest(cols = c(augmented))
+
+clusterings = 
+  clusts %>%
+  unnest(cols = c(glanced))
+
+p2 = 
+  ggplot(assignments, aes(x = Distance, y = Speeding)) +
+  geom_point(aes(color = .cluster), alpha = 0.8) + 
+  facet_wrap(~ k)
+p2
+
+```
+
+*The most appropriate value appears to be k = 4.*
+
+```{r task 5}
+#Task 5: Create a plot of k versus within cluster sum of squares. Hint: We did this in the first clustering lecture. Which value of k appears to be best?
+
+ggplot(clusterings, aes(k, tot.withinss)) +
+  geom_line() +
+  geom_point()
+```
+
+*It appears that k = 4 is the best value.*
+
+```{r task 6}
+#Task 6: Repeat Task 3 for the number of clusters that you identifed in Task 5. Use the same random number seed as in Task 3. Don’t forget to include your visualization. Comment on the resulting cluster.
+
+set.seed(64)
+clusts = 
+  tibble(k = 4) %>%
+  mutate(
+    kclust = map(k, ~kmeans(trucks_cleaned, .x)),
+    tidied = map(kclust, tidy),
+    glanced = map(kclust, glance),
+    augmented = map(kclust, augment, trucks_cleaned)
+  )
+
+clusts
+
+clusters = 
+  clusts %>%
+  unnest(cols = c(tidied))
+
+assignments = 
+  clusts %>% 
+  unnest(cols = c(augmented))
+
+clusterings = 
+  clusts %>%
+  unnest(cols = c(glanced))
+
+set.seed(64)
+clusters = kmeans(trucks_cleaned, 4)
+
+p3 = 
+  ggplot(assignments, aes(x = Distance, y = Speeding)) +
+  geom_point(aes(color = .cluster), alpha = 0.8) + 
+  facet_wrap(~ k)
+p3
+```
+
+*By splitting the data into four clusters, we have two groups of significant speeders and two of low to non-speeders (one traveling shorter distances and one traveling longer distances in each category).  With this visualization, it is clear that there is a higher concentration of shorter distance drivers that are "part-time" speeders, whereas the longer distance group has all of the "full-time" speeders.*
